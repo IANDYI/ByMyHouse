@@ -14,71 +14,71 @@ public class MortgageOfferService : IMortgageOfferService
 
     public bool IsApproved(MortgageApplication application)
     {
-        // Business rule: Maximum loan amount is 4.5x annual income
-        var maxLoan = application.AnnualIncome * 4.5m;
+        // Maximum allowed loan is 4.5 times yearly income
+        var maxLoan = application.YearlyIncome * 4.5m;
         
-        // Business rule: Minimum income threshold
+        // Required minimum income level
         var minIncome = 25000m;
 
-        var isApproved = application.AnnualIncome >= minIncome 
-                        && application.RequestedAmount <= maxLoan;
+        var isApproved = application.YearlyIncome >= minIncome 
+                        && application.LoanAmount <= maxLoan;
 
         _logger.LogInformation(
             "Mortgage application {ApplicationId} - Requested: {Requested}, Max Allowed: {MaxLoan}, Approved: {IsApproved}",
-            application.Id, application.RequestedAmount, maxLoan, isApproved);
+            application.Id, application.LoanAmount, maxLoan, isApproved);
 
         return isApproved;
     }
 
     public Task<MortgageOffer> GenerateOfferAsync(MortgageApplication application)
     {
-        var maxLoan = application.AnnualIncome * 4.5m;
-        var approvedAmount = Math.Min(application.RequestedAmount, maxLoan);
+        var maxLoan = application.YearlyIncome * 4.5m;
+        var approvedAmount = Math.Min(application.LoanAmount, maxLoan);
 
-        // Calculate interest rate based on loan-to-income ratio
-        var loanToIncomeRatio = approvedAmount / application.AnnualIncome;
+        // Derive interest rate from loan-to-income ratio
+        var loanToIncomeRatio = approvedAmount / application.YearlyIncome;
         var interestRate = CalculateInterestRate(loanToIncomeRatio);
 
-        // Standard mortgage term: 25 years
+        // Default mortgage duration: 25 years
         var termInYears = 25;
 
-        // Calculate monthly payment
+        // Compute monthly payment amount
         var monthlyPayment = CalculateMonthlyPayment(approvedAmount, interestRate, termInYears);
 
         var offer = new MortgageOffer
         {
             Id = Guid.NewGuid().ToString(),
             ApplicationId = application.Id,
-            ApprovedAmount = approvedAmount,
-            InterestRate = interestRate,
-            TermInYears = termInYears,
-            MonthlyPayment = monthlyPayment,
-            OfferDate = DateTime.UtcNow,
-            ExpirationDate = DateTime.UtcNow.AddDays(14), // Offer valid for 14 days
-            OfferDocumentUrl = string.Empty // Will be set after document generation
+            LoanOfferAmount = approvedAmount,
+            AnnualInterestRate = interestRate,
+            DurationYears = termInYears,
+            PaymentMonthly = monthlyPayment,
+            CreatedDate = DateTime.UtcNow,
+            ValidUntilDate = DateTime.UtcNow.AddDays(14), // Offer expires after 14 days
+            DocumentLink = string.Empty // Populated after document creation
         };
 
         _logger.LogInformation(
             "Generated mortgage offer {OfferId} for application {ApplicationId} - Amount: {Amount}, Rate: {Rate}%",
-            offer.Id, application.Id, offer.ApprovedAmount, offer.InterestRate);
+            offer.Id, application.Id, offer.LoanOfferAmount, offer.AnnualInterestRate);
 
         return Task.FromResult(offer);
     }
 
     private static decimal CalculateInterestRate(decimal loanToIncomeRatio)
     {
-        // Base interest rate: 3.0%
+        // Starting interest rate: 3.0%
         var baseRate = 3.0m;
 
-        // Add risk adjustment based on loan-to-income ratio
+        // Apply risk premium according to loan-to-income ratio
         if (loanToIncomeRatio > 4.0m)
-            return baseRate + 2.5m; // 5.5%
+            return baseRate + 2.5m; // High risk: 5.5%
         else if (loanToIncomeRatio > 3.5m)
-            return baseRate + 2.0m; // 5.0%
+            return baseRate + 2.0m; // Moderate-high: 5.0%
         else if (loanToIncomeRatio > 3.0m)
-            return baseRate + 1.5m; // 4.5%
+            return baseRate + 1.5m; // Moderate: 4.5%
         else
-            return baseRate; // 3.0%
+            return baseRate; // Low risk: 3.0%
     }
 
     private static decimal CalculateMonthlyPayment(decimal principal, decimal annualInterestRate, int termInYears)

@@ -10,27 +10,27 @@ public class ImageStorageService : IImageStorageService
 
     public ImageStorageService()
     {
-        // Use Azurite connection string for local development
+        // Local Azurite connection string for development environment
         var connectionString = "UseDevelopmentStorage=true";
         var blobServiceClient = new BlobServiceClient(connectionString);
         _containerClient = blobServiceClient.GetBlobContainerClient("house-images");
         _containerClient.CreateIfNotExists(PublicAccessType.Blob);
     }
 
-    public async Task<string> UploadHouseImageAsync(int houseId, Stream imageStream, string fileName)
+    public async Task<string> StorePropertyPictureAsync(int houseId, Stream imageStream, string fileName)
     {
-        // Create a unique blob name: house-{id}/{timestamp}-{filename}
+        // Build unique blob path structure: house-{id}/{timestamp}-{filename}
         var blobName = $"house-{houseId}/{DateTimeOffset.UtcNow.Ticks}-{fileName}";
         var blobClient = _containerClient.GetBlobClient(blobName);
 
-        // Upload the image
+        // Persist image data to blob storage
         await blobClient.UploadAsync(imageStream, overwrite: true);
 
-        // Return the URL
+        // Provide blob URL for retrieval
         return blobClient.Uri.ToString();
     }
 
-    public async Task<List<string>> GetHouseImageUrlsAsync(int houseId)
+    public async Task<List<string>> FetchPropertyPictureUrlsAsync(int houseId)
     {
         var imageUrls = new List<string>();
         var prefix = $"house-{houseId}/";
@@ -44,10 +44,10 @@ public class ImageStorageService : IImageStorageService
         return imageUrls;
     }
 
-    public async Task DeleteHouseImageAsync(string imageUrl)
+    public async Task RemovePropertyPictureAsync(string imageUrl)
     {
         var uri = new Uri(imageUrl);
-        var blobName = uri.Segments[^1]; // Get last segment
+        var blobName = uri.Segments[^1]; // Extract final path segment
         var blobClient = _containerClient.GetBlobClient(blobName);
         await blobClient.DeleteIfExistsAsync();
     }

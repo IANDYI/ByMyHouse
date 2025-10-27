@@ -3,22 +3,22 @@ namespace BuyMyHouse.Core.Models;
 public class MortgageApplication
 {
     public int Id { get; set; }
-    public string ApplicantEmail { get; set; } = string.Empty;
-    public string ApplicantName { get; set; } = string.Empty;
-    public decimal AnnualIncome { get; set; }
-    public decimal RequestedAmount { get; set; }
-    public int HouseId { get; set; }
-    public DateTime ApplicationDate { get; set; }
+    public string CandidateEmail { get; set; } = string.Empty;
+    public string CandidateName { get; set; } = string.Empty;
+    public decimal YearlyIncome { get; set; }
+    public decimal LoanAmount { get; set; }
+    public int PropertyId { get; set; }
+    public DateTime SubmittedDate { get; set; }
 
-    public MortgageStatus Status { get; set; }
-    public string? OfferDocumentUrl { get; set; }
+    public ApplicationState CurrentStatus { get; set; }
+    public string? DocumentLinkUrl { get; set; }
 }
 
-public enum MortgageStatus
+public enum ApplicationState
 {
-    Pending,
-    Processing,
-    Approved,
-    Rejected,
-    OfferSent
+    AwaitingReview,
+    UnderProcessing,
+    Accepted,
+    Declined,
+    OfferDelivered
 }

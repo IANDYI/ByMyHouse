@@ -3,14 +3,14 @@ namespace BuyMyHouse.Core.Models;
 public class House
 {
     public int Id { get; set; }
-    public string Address { get; set; } = string.Empty;
-    public string City { get; set; } = string.Empty;
-    public decimal Price { get; set; }
-    public int Bedrooms { get; set; }
-    public int Bathrooms { get; set; }
-    public int SquareMeters { get; set; }
-    public string Description { get; set; } = string.Empty;
-    public List<string> ImageUrls { get; set; } = new();
-    public DateTime ListedDate { get; set; }
-    public bool IsAvailable { get; set; }
+    public string PropertyAddress { get; set; } = string.Empty;
+    public string LocationCity { get; set; } = string.Empty;
+    public decimal ListingPrice { get; set; }
+    public int BedroomCount { get; set; }
+    public int BathroomCount { get; set; }
+    public int AreaInSquareMeters { get; set; }
+    public string PropertyDescription { get; set; } = string.Empty;
+    public List<string> PictureUrls { get; set; } = new();
+    public DateTime DateListed { get; set; }
+    public bool CurrentlyAvailable { get; set; }
 }

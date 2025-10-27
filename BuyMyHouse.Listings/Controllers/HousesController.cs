@@ -23,19 +23,19 @@ public class HousesController : ControllerBase
     }
 
     /// <summary>
-    /// Get all available houses
+    /// Retrieves listing of all currently available properties
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<House>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IEnumerable<House>>> GetAllHouses()
     {
         _logger.LogInformation("Fetching all houses");
-        var houses = await _houseRepository.GetAllAsync();
+        var houses = await _houseRepository.FetchAllPropertiesAsync();
         return Ok(houses);
     }
 
     /// <summary>
-    /// Get house by ID
+    /// Returns specific property details by identifier
     /// </summary>
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(House), StatusCodes.Status200OK)]
@@ -43,7 +43,7 @@ public class HousesController : ControllerBase
     public async Task<ActionResult<House>> GetHouseById(int id)
     {
         _logger.LogInformation("Fetching house with ID: {HouseId}", id);
-        var house = await _houseRepository.GetByIdAsync(id);
+        var house = await _houseRepository.RetrievePropertyByIdAsync(id);
         
         if (house == null)
         {
@@ -55,7 +55,7 @@ public class HousesController : ControllerBase
     }
 
     /// <summary>
-    /// Search houses by price range
+    /// Filters and returns properties within specified price range
     /// </summary>
     [HttpGet("search")]
     [ProducesResponseType(typeof(IEnumerable<House>), StatusCodes.Status200OK)]
@@ -70,12 +70,12 @@ public class HousesController : ControllerBase
         }
 
         _logger.LogInformation("Searching houses in price range: {MinPrice} - {MaxPrice}", minPrice, maxPrice);
-        var houses = await _houseRepository.GetByPriceRangeAsync(minPrice, maxPrice);
+        var houses = await _houseRepository.QueryByPriceRangeAsync(minPrice, maxPrice);
         return Ok(houses);
     }
 
     /// <summary>
-    /// Upload image for a house
+    /// Stores property photograph and updates property record
     /// </summary>
     [HttpPost("{id}/images")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
@@ -83,7 +83,7 @@ public class HousesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> UploadHouseImage(int id, IFormFile image)
     {
-        var house = await _houseRepository.GetByIdAsync(id);
+        var house = await _houseRepository.RetrievePropertyByIdAsync(id);
         if (house == null)
         {
             return NotFound(new { message = $"House with ID {id} not found" });
@@ -94,7 +94,7 @@ public class HousesController : ControllerBase
             return BadRequest(new { message = "No image file provided" });
         }
 
-        // Validate image file type
+        // Enforce allowed image file extensions
         var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif" };
         var extension = Path.GetExtension(image.FileName).ToLowerInvariant();
         if (!allowedExtensions.Contains(extension))
@@ -105,11 +105,11 @@ public class HousesController : ControllerBase
         _logger.LogInformation("Uploading image for house {HouseId}", id);
         
         using var stream = image.OpenReadStream();
-        var imageUrl = await _imageStorageService.UploadHouseImageAsync(id, stream, image.FileName);
+        var imageUrl = await _imageStorageService.StorePropertyPictureAsync(id, stream, image.FileName);
 
-        // Update house with new image URL
-        house.ImageUrls.Add(imageUrl);
-        await _houseRepository.UpdateAsync(house);
+        // Append new image URL to property's collection
+        house.PictureUrls.Add(imageUrl);
+        await _houseRepository.ModifyPropertyAsync(house);
 
         _logger.LogInformation("Image uploaded successfully for house {HouseId}: {ImageUrl}", id, imageUrl);
 
@@ -117,20 +117,20 @@ public class HousesController : ControllerBase
     }
 
     /// <summary>
-    /// Get all images for a house
+    /// Returns collection of all images associated with property
     /// </summary>
     [HttpGet("{id}/images")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> GetHouseImages(int id)
     {
-        var house = await _houseRepository.GetByIdAsync(id);
+        var house = await _houseRepository.RetrievePropertyByIdAsync(id);
         if (house == null)
         {
             return NotFound(new { message = $"House with ID {id} not found" });
         }
 
-        return Ok(new { houseId = id, imageUrls = house.ImageUrls });
+        return Ok(new { houseId = id, imageUrls = house.PictureUrls });
     }
 }
 

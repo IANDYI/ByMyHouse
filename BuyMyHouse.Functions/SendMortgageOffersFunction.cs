@@ -7,8 +7,8 @@ using Microsoft.Extensions.Logging;
 namespace BuyMyHouse.Functions;
 
 /// <summary>
-/// Azure Function 2: Timer-triggered email notification sender
-/// Runs in the morning to send mortgage offer emails to customers
+/// Email dispatch function triggered on schedule
+/// Executes in morning hours to deliver mortgage offers via email to applicants
 /// </summary>
 public class SendMortgageOffersFunction
 {
@@ -27,9 +27,9 @@ public class SendMortgageOffersFunction
     }
 
     /// <summary>
-    /// Runs daily at 9:00 AM to send mortgage offer emails
-    /// CRON format: "0 0 9 * * *" = At 09:00:00 every day
-    /// For testing: "0 */10 * * * *" = Every 10 minutes
+    /// Scheduled to run daily at 9:00 AM for email delivery
+    /// CRON pattern: "0 0 9 * * *" triggers at 09:00:00 daily
+    /// Test environment: "0 */10 * * * *" executes every 10 minutes
     /// </summary>
     [Function("SendMortgageOffers")]
     public async Task Run([TimerTrigger("0 0 9 * * *")] TimerInfo timerInfo)
@@ -38,8 +38,8 @@ public class SendMortgageOffersFunction
 
         try
         {
-            // Get all approved applications that haven't been sent yet (CQRS Read)
-            var approvedApplications = await GetApprovedApplicationsAsync();
+            // Retrieve approved applications requiring email delivery
+            var approvedApplications = await FetchAcceptedApplications();
             var applicationsList = approvedApplications.ToList();
 
             _logger.LogInformation("Found {Count} approved mortgage offers to send", applicationsList.Count);
@@ -52,21 +52,21 @@ public class SendMortgageOffersFunction
                 {
                     _logger.LogInformation(
                         "Sending mortgage offer email for application {ApplicationId} to {ApplicantEmail}",
-                        application.Id, application.ApplicantEmail);
+                        application.Id, application.CandidateEmail);
 
-                    // Generate offer URL (time-limited access)
+                    // Create time-restricted access URL for offer
                     var offerUrl = GenerateOfferUrl(application.Id);
 
-                    // Send email notification
+                    // Dispatch email notification
                     await _notificationService.SendOfferEmailAsync(
-                        application.ApplicantEmail,
-                        application.ApplicantName,
+                        application.CandidateEmail,
+                        application.CandidateName,
                         offerUrl);
 
-                    // Update status to OfferSent (CQRS Write)
-                    await _mortgageRepository.UpdateApplicationStatusAsync(
+                    // Update status indicating offer has been delivered
+                    await _mortgageRepository.ChangeApplicationStateAsync(
                         application.Id, 
-                        MortgageStatus.OfferSent);
+                        ApplicationState.OfferDelivered);
 
                     _logger.LogInformation(
                         "Successfully sent mortgage offer for application {ApplicationId}",
@@ -97,18 +97,18 @@ public class SendMortgageOffersFunction
         }
     }
 
-    private async Task<IEnumerable<MortgageApplication>> GetApprovedApplicationsAsync()
+    private async Task<IEnumerable<MortgageApplication>> FetchAcceptedApplications()
     {
         _logger.LogInformation("Querying for approved applications that need offer emails sent");
         
-        // Query for applications with status "Approved"
-        return await _mortgageRepository.GetApprovedApplicationsAsync();
+        // Filter applications that are in approved state
+        return await _mortgageRepository.FetchAcceptedApplicationsAsync();
     }
 
     private string GenerateOfferUrl(int applicationId)
     {
-        // Generate a time-limited URL for the mortgage offer
-        // In production, this would be a secured endpoint with token
+        // Construct time-restricted URL for offer access
+        // Production implementation would include authentication token
         var baseUrl = "https://buymyhouse.com/mortgage-offers";
         var token = Guid.NewGuid().ToString("N");
         

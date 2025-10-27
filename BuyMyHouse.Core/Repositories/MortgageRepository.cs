@@ -23,7 +23,7 @@ public class MortgageRepository : IMortgageRepository
         _counterTableClient.CreateIfNotExists();
     }
 
-    private async Task<int> GetNextIdAsync()
+    private async Task<int> RetrieveNextIdentifierAsync()
     {
         const string counterKey = "MortgageApplicationCounter";
         try
@@ -39,7 +39,7 @@ public class MortgageRepository : IMortgageRepository
         }
         catch (Azure.RequestFailedException)
         {
-            // Counter doesn't exist, create it
+            // Initialize counter if it doesn't exist yet
             var entity = new TableEntity("Counter", counterKey)
             {
                 { "CurrentId", 1 }
@@ -49,32 +49,32 @@ public class MortgageRepository : IMortgageRepository
         }
     }
 
-    public async Task CreateApplicationAsync(MortgageApplication application)
+    public async Task SaveNewApplicationAsync(MortgageApplication application)
     {
-        // Generate auto-increment ID
-        application.Id = await GetNextIdAsync();
+        // Auto-assign next available ID for this application
+        application.Id = await RetrieveNextIdentifierAsync();
         
-        var entity = new TableEntity(application.Status.ToString(), application.Id.ToString())
+        var entity = new TableEntity(application.CurrentStatus.ToString(), application.Id.ToString())
         {
-            { "ApplicantEmail", application.ApplicantEmail },
-            { "ApplicantName", application.ApplicantName },
-            { "AnnualIncome", (double)application.AnnualIncome },
-            { "RequestedAmount", (double)application.RequestedAmount },
-            { "HouseId", application.HouseId },
-            { "ApplicationDate", application.ApplicationDate },
-            { "Status", application.Status.ToString() }
+            { "ApplicantEmail", application.CandidateEmail },
+            { "ApplicantName", application.CandidateName },
+            { "AnnualIncome", (double)application.YearlyIncome },
+            { "RequestedAmount", (double)application.LoanAmount },
+            { "HouseId", application.PropertyId },
+            { "ApplicationDate", application.SubmittedDate },
+            { "Status", application.CurrentStatus.ToString() }
         };
 
         await _applicationsTableClient.AddEntityAsync(entity);
     }
 
-    public async Task UpdateApplicationStatusAsync(int applicationId, MortgageStatus status)
+    public async Task ChangeApplicationStateAsync(int applicationId, ApplicationState status)
     {
         await foreach (var entity in _applicationsTableClient.QueryAsync<TableEntity>())
         {
             if (entity.RowKey == applicationId.ToString())
             {
-                // Need to move entity to new partition (status changed)
+                // Relocate entity to appropriate partition based on updated status
                 await _applicationsTableClient.DeleteEntityAsync(entity.PartitionKey, entity.RowKey);
                 
                 entity.PartitionKey = status.ToString();
@@ -85,7 +85,7 @@ public class MortgageRepository : IMortgageRepository
             }
         }
     }
-    public async Task<MortgageApplication?> GetApplicationByIdAsync(int applicationId)
+    public async Task<MortgageApplication?> FetchApplicationByIdAsync(int applicationId)
     {
         await foreach (var entity in _applicationsTableClient.QueryAsync<TableEntity>(e => e.RowKey == applicationId.ToString()))
         {
@@ -93,12 +93,12 @@ public class MortgageRepository : IMortgageRepository
         }
         return null;
     }
-    public async Task<IEnumerable<MortgageApplication>> GetPendingApplicationsAsync()
+    public async Task<IEnumerable<MortgageApplication>> FetchAwaitingApplicationsAsync()
     {
         var applications = new List<MortgageApplication>();
         
         await foreach (var entity in _applicationsTableClient.QueryAsync<TableEntity>(
-            e => e.PartitionKey == MortgageStatus.Pending.ToString()))
+            e => e.PartitionKey == ApplicationState.AwaitingReview.ToString()))
         {
             applications.Add(MapToApplication(entity));
         }
@@ -106,12 +106,12 @@ public class MortgageRepository : IMortgageRepository
         return applications;
     }
 
-    public async Task<IEnumerable<MortgageApplication>> GetApprovedApplicationsAsync()
+    public async Task<IEnumerable<MortgageApplication>> FetchAcceptedApplicationsAsync()
     {
         var applications = new List<MortgageApplication>();
         
         await foreach (var entity in _applicationsTableClient.QueryAsync<TableEntity>(
-            e => e.PartitionKey == MortgageStatus.Approved.ToString()))
+            e => e.PartitionKey == ApplicationState.Accepted.ToString()))
         {
             applications.Add(MapToApplication(entity));
         }
@@ -119,14 +119,14 @@ public class MortgageRepository : IMortgageRepository
         return applications;
     }
 
-    public async Task SaveApplicantIncomeAsync(ApplicantIncome income)
+    public async Task StoreCandidateIncomeAsync(ApplicantIncome income)
     {
         var entity = new TableEntity(income.PartitionKey, income.RowKey)
         {
-            { "ApplicantEmail", income.ApplicantEmail },
-            { "AnnualIncome", income.AnnualIncome },
-            { "RecordedDate", income.RecordedDate },
-            { "ApplicationId", income.ApplicationId }
+            { "ApplicantEmail", income.CandidateEmailAddress },
+            { "AnnualIncome", income.YearlyIncome },
+            { "RecordedDate", income.CreationTimestamp },
+            { "ApplicationId", income.ApplicationIdentifier }
         };
 
         await _incomeTableClient.UpsertEntityAsync(entity);
@@ -137,19 +137,19 @@ public class MortgageRepository : IMortgageRepository
         return new MortgageApplication
         {
             Id = Convert.ToInt32(entity.RowKey),
-            ApplicantEmail = entity.GetString("ApplicantEmail") ?? string.Empty,
-            ApplicantName = entity.GetString("ApplicantName") ?? string.Empty,
-            AnnualIncome = entity.ContainsKey("AnnualIncome") && entity["AnnualIncome"] != null 
+            CandidateEmail = entity.GetString("ApplicantEmail") ?? string.Empty,
+            CandidateName = entity.GetString("ApplicantName") ?? string.Empty,
+            YearlyIncome = entity.ContainsKey("AnnualIncome") && entity["AnnualIncome"] != null 
                 ? Convert.ToDecimal(entity["AnnualIncome"]) 
                 : 0,
-            RequestedAmount = entity.ContainsKey("RequestedAmount") && entity["RequestedAmount"] != null 
+            LoanAmount = entity.ContainsKey("RequestedAmount") && entity["RequestedAmount"] != null 
                 ? Convert.ToDecimal(entity["RequestedAmount"]) 
                 : 0,
-            HouseId = entity.ContainsKey("HouseId") && entity["HouseId"] != null 
+            PropertyId = entity.ContainsKey("HouseId") && entity["HouseId"] != null 
                 ? Convert.ToInt32(entity["HouseId"]) 
                 : 0,
-            ApplicationDate = entity.GetDateTime("ApplicationDate") ?? DateTime.UtcNow,
-            Status = Enum.Parse<MortgageStatus>(entity.GetString("Status") ?? "Pending")
+            SubmittedDate = entity.GetDateTime("ApplicationDate") ?? DateTime.UtcNow,
+            CurrentStatus = Enum.Parse<ApplicationState>(entity.GetString("Status") ?? "AwaitingReview")
         };
     }
 

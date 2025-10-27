@@ -7,8 +7,8 @@ using Microsoft.Extensions.Logging;
 namespace BuyMyHouse.Functions;
 
 /// <summary>
-/// Azure Function 1: Timer-triggered batch processing
-/// Runs at end of each day to process pending mortgage applications
+/// Scheduled batch processor triggered by timer
+/// Executes nightly to evaluate and process mortgage applications in queue
 /// </summary>
 public class ProcessMortgageApplicationsFunction
 {
@@ -30,9 +30,9 @@ public class ProcessMortgageApplicationsFunction
     }
 
     /// <summary>
-    /// Runs daily at 11:00 PM (23:00) to process all pending applications
-    /// CRON format: "0 0 23 * * *" = At 23:00:00 every day
-    /// For testing: "0 */5 * * * *" = Every 5 minutes
+    /// Scheduled execution daily at 11:00 PM for batch processing
+    /// CRON expression: "0 0 23 * * *" executes at 23:00:00 daily
+    /// Test mode CRON: "0 */5 * * * *" runs every 5 minutes
     /// </summary>
     [Function("ProcessMortgageApplications")]
     public async Task Run([TimerTrigger("0 0 23 * * *")] TimerInfo timerInfo)
@@ -41,8 +41,8 @@ public class ProcessMortgageApplicationsFunction
 
         try
         {
-            // Get all pending applications (CQRS Read)
-            var pendingApplications = await _mortgageRepository.GetPendingApplicationsAsync();
+            // Query all applications awaiting processing
+            var pendingApplications = await _mortgageRepository.FetchAwaitingApplicationsAsync();
             var applicationsList = pendingApplications.ToList();
 
             _logger.LogInformation("Found {Count} pending mortgage applications to process", applicationsList.Count);
@@ -56,34 +56,34 @@ public class ProcessMortgageApplicationsFunction
                 try
                 {
                     _logger.LogInformation("Processing mortgage application {ApplicationId} for {ApplicantEmail}", 
-                        application.Id, application.ApplicantEmail);
+                        application.Id, application.CandidateEmail);
 
-                    // Update status to Processing (CQRS Write)
-                    await _mortgageRepository.UpdateApplicationStatusAsync(application.Id, MortgageStatus.Processing);
+                    // Transition application to processing state
+                    await _mortgageRepository.ChangeApplicationStateAsync(application.Id, ApplicationState.UnderProcessing);
 
                     // Check if application is approved
                     var isApproved = _mortgageOfferService.IsApproved(application);
 
                     if (isApproved)
                     {
-                        // Generate mortgage offer
+                        // Create mortgage proposal for approved application
                         var offer = await _mortgageOfferService.GenerateOfferAsync(application);
 
-                        // Generate offer document and store in blob storage
+                        // Create and persist offer document to blob storage
                         var documentUrl = await _notificationService.GenerateOfferDocumentAsync(
                             application.Id,
-                            offer.ApprovedAmount,
-                            offer.InterestRate,
-                            offer.TermInYears,
-                            offer.MonthlyPayment);
+                            offer.LoanOfferAmount,
+                            offer.AnnualInterestRate,
+                            offer.DurationYears,
+                            offer.PaymentMonthly);
 
-                        offer.OfferDocumentUrl = documentUrl;
+                        offer.DocumentLink = documentUrl;
 
-                        // Update application status to Approved (CQRS Write)
-                        await _mortgageRepository.UpdateApplicationStatusAsync(application.Id, MortgageStatus.Approved);
+                        // Mark application as accepted
+                        await _mortgageRepository.ChangeApplicationStateAsync(application.Id, ApplicationState.Accepted);
 
-                        // Send notification email (will be sent in morning by another function)
-                        // For now, we'll log that the offer is ready
+                        // Notification email will be dispatched next morning by separate function
+                        // Logging offer readiness for audit purposes
                         _logger.LogInformation(
                             "Mortgage application {ApplicationId} approved - Offer document: {DocumentUrl}",
                             application.Id, documentUrl);
@@ -92,8 +92,8 @@ public class ProcessMortgageApplicationsFunction
                     }
                     else
                     {
-                        // Update status to Rejected (CQRS Write)
-                        await _mortgageRepository.UpdateApplicationStatusAsync(application.Id, MortgageStatus.Rejected);
+                        // Mark application as declined
+                        await _mortgageRepository.ChangeApplicationStateAsync(application.Id, ApplicationState.Declined);
 
                         _logger.LogInformation("Mortgage application {ApplicationId} rejected", application.Id);
 

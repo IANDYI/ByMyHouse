@@ -13,26 +13,26 @@ namespace BuyMyHouse.Core.Repositories
             _context = context;
         }
 
-        public async Task<IEnumerable<House>> GetAllAsync()
+        public async Task<IEnumerable<House>> FetchAllPropertiesAsync()
         {
             return await _context.Houses
-            .Where(h => h.IsAvailable)
-            .OrderByDescending(h => h.ListedDate)
+            .Where(h => h.CurrentlyAvailable)
+            .OrderByDescending(h => h.DateListed)
             .ToListAsync();
         }
-        public async Task<IEnumerable<House>> GetByPriceRangeAsync(decimal minPrice, decimal maxPrice)
+        public async Task<IEnumerable<House>> QueryByPriceRangeAsync(decimal minPrice, decimal maxPrice)
         {
             return await _context.Houses
-            .Where(h => h.IsAvailable && h.Price >= minPrice && h.Price <= maxPrice)
-            .OrderBy(h => h.Price)
+            .Where(h => h.CurrentlyAvailable && h.ListingPrice >= minPrice && h.ListingPrice <= maxPrice)
+            .OrderBy(h => h.ListingPrice)
             .ToListAsync();
         }
-        public async Task<House?> GetByIdAsync(int id)
+        public async Task<House?> RetrievePropertyByIdAsync(int id)
         {
             return await _context.Houses.FindAsync(id);
         }
 
-        public async Task UpdateAsync(House house)
+        public async Task ModifyPropertyAsync(House house)
         {
             _context.Houses.Update(house);
             await _context.SaveChangesAsync();

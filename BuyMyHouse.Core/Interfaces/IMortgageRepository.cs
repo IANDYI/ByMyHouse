@@ -4,16 +4,16 @@ namespace BuyMyHouse.Core.Interfaces
 {
     public interface IMortgageRepository
     {
-        // Write operations
-        Task CreateApplicationAsync(MortgageApplication application);
-        Task UpdateApplicationStatusAsync(int applicationId, MortgageStatus status);
+        // Command operations for modifying data
+        Task SaveNewApplicationAsync(MortgageApplication application);
+        Task ChangeApplicationStateAsync(int applicationId, ApplicationState status);
         
-        // Read operations (CQRS)
-        Task<MortgageApplication?> GetApplicationByIdAsync(int applicationId);
-        Task<IEnumerable<MortgageApplication>> GetPendingApplicationsAsync();
-        Task<IEnumerable<MortgageApplication>> GetApprovedApplicationsAsync();
+        // Query operations implementing Command Query Responsibility Segregation
+        Task<MortgageApplication?> FetchApplicationByIdAsync(int applicationId);
+        Task<IEnumerable<MortgageApplication>> FetchAwaitingApplicationsAsync();
+        Task<IEnumerable<MortgageApplication>> FetchAcceptedApplicationsAsync();
         
-        // Income tracking
-        Task SaveApplicantIncomeAsync(ApplicantIncome income);
+        // Persist applicant income information
+        Task StoreCandidateIncomeAsync(ApplicantIncome income);
     }
 }

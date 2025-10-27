@@ -21,7 +21,7 @@ public class MortgageApplicationsController : ControllerBase
     }
 
     /// <summary>
-    /// Submit a new mortgage application (CQRS Write)
+    /// Creates new mortgage application following CQRS command pattern
     /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(MortgageApplication), StatusCodes.Status201Created)]
@@ -34,33 +34,33 @@ public class MortgageApplicationsController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        _logger.LogInformation("Creating mortgage application for {ApplicantEmail}", dto.ApplicantEmail);
+        _logger.LogInformation("Creating mortgage application for {ApplicantEmail}", dto.CandidateEmail);
 
         var application = new MortgageApplication
         {
-            ApplicantEmail = dto.ApplicantEmail,
-            ApplicantName = dto.ApplicantName,
-            AnnualIncome = dto.AnnualIncome,
-            RequestedAmount = dto.RequestedAmount,
-            HouseId = dto.HouseId,
-            ApplicationDate = DateTime.UtcNow,
-            Status = MortgageStatus.Pending
+            CandidateEmail = dto.CandidateEmail,
+            CandidateName = dto.CandidateName,
+            YearlyIncome = dto.YearlyIncome,
+            LoanAmount = dto.LoanAmount,
+            PropertyId = dto.PropertyId,
+            SubmittedDate = DateTime.UtcNow,
+            CurrentStatus = ApplicationState.AwaitingReview
         };
 
-        // CQRS Write - Save to Table Storage (ID will be auto-generated)
-        await _mortgageRepository.CreateApplicationAsync(application);
+        // Persist application record to Table Storage with auto-generated identifier
+        await _mortgageRepository.SaveNewApplicationAsync(application);
 
-        // CQRS Write - Save applicant income for future reference
+        // Archive applicant income data for future analysis
         var income = new ApplicantIncome
         {
-            PartitionKey = application.ApplicationDate.ToString("yyyy-MM"),
+            PartitionKey = application.SubmittedDate.ToString("yyyy-MM"),
             RowKey = application.Id.ToString(),
-            ApplicantEmail = application.ApplicantEmail,
-            AnnualIncome = application.AnnualIncome,
-            RecordedDate = application.ApplicationDate,
-            ApplicationId = application.Id.ToString()
+            CandidateEmailAddress = application.CandidateEmail,
+            YearlyIncome = application.YearlyIncome,
+            CreationTimestamp = application.SubmittedDate,
+            ApplicationIdentifier = application.Id.ToString()
         };
-        await _mortgageRepository.SaveApplicantIncomeAsync(income);
+        await _mortgageRepository.StoreCandidateIncomeAsync(income);
 
         _logger.LogInformation("Mortgage application {ApplicationId} created successfully", application.Id);
 
@@ -68,7 +68,7 @@ public class MortgageApplicationsController : ControllerBase
     }
 
     /// <summary>
-    /// Get mortgage application by ID (CQRS Read)
+    /// Retrieves specific application using identifier following CQRS query pattern
     /// </summary>
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(MortgageApplication), StatusCodes.Status200OK)]
@@ -77,7 +77,7 @@ public class MortgageApplicationsController : ControllerBase
     {
         _logger.LogInformation("Fetching mortgage application {ApplicationId}", id);
 
-        var application = await _mortgageRepository.GetApplicationByIdAsync(id);
+        var application = await _mortgageRepository.FetchApplicationByIdAsync(id);
 
         if (application == null)
         {
@@ -89,7 +89,7 @@ public class MortgageApplicationsController : ControllerBase
     }
 
     /// <summary>
-    /// Get all pending applications (CQRS Read)
+    /// Returns collection of applications awaiting review
     /// </summary>
     [HttpGet("pending")]
     [ProducesResponseType(typeof(IEnumerable<MortgageApplication>), StatusCodes.Status200OK)]
@@ -97,28 +97,28 @@ public class MortgageApplicationsController : ControllerBase
     {
         _logger.LogInformation("Fetching all pending mortgage applications");
         
-        var applications = await _mortgageRepository.GetPendingApplicationsAsync();
+        var applications = await _mortgageRepository.FetchAwaitingApplicationsAsync();
         
         return Ok(applications);
     }
 
     /// <summary>
-    /// Update application status (CQRS Write)
+    /// Modifies application state following CQRS command pattern
     /// </summary>
     [HttpPatch("{id}/status")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateStatus(int id, [FromBody] MortgageStatus status)
+    public async Task<IActionResult> UpdateStatus(int id, [FromBody] ApplicationState status)
     {
         _logger.LogInformation("Updating mortgage application {ApplicationId} status to {Status}", id, status);
 
-        var application = await _mortgageRepository.GetApplicationByIdAsync(id);
+        var application = await _mortgageRepository.FetchApplicationByIdAsync(id);
         if (application == null)
         {
             return NotFound(new { message = $"Application with ID {id} not found" });
         }
 
-        await _mortgageRepository.UpdateApplicationStatusAsync(id, status);
+        await _mortgageRepository.ChangeApplicationStateAsync(id, status);
 
         return NoContent();
     }

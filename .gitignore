@@ -1,0 +1,29 @@
+# Build results
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary
+*.tmp
+*.cache
+/tmp/

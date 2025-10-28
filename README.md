@@ -145,7 +145,7 @@ Navigate to `https://localhost:5001/swagger` in your browser
 
 **Option B - Command Line:**
 ```bash
-# Note: Use -k flag to skip SSL certificate verification
+# Use -k flag to skip certificate verification for localhost HTTPS
 curl -k https://localhost:5001/api/houses
 
 # Or use HTTP endpoint
@@ -189,11 +189,11 @@ curl -X POST https://localhost:5001/api/houses/1/images \
 3. Use this sample payload:
    ```json
    {
-  "applicantEmail": "alex.brown@example.com",
-  "applicantName": "Alex Brown",
-  "annualIncome": 65000,
-  "requestedAmount": 280000,
-     "houseId": 1
+  "candidateEmail": "alex.brown@example.com",
+  "candidateName": "Alex Brown",
+  "yearlyIncome": 65000,
+  "loanAmount": 280000,
+     "propertyId": 1
    }
    ```
 4. Copy the `applicationId` from the response for verification
@@ -202,26 +202,26 @@ curl -X POST https://localhost:5001/api/houses/1/images \
 ```json
 {
   "id": 1,
-  "applicantEmail": "alex.brown@example.com",
-  "applicantName": "Alex Brown",
-  "annualIncome": 65000,
-  "requestedAmount": 280000,
-  "houseId": 1,
-  "applicationDate": "2025-11-27T22:53:00Z",
-  "status": "Pending"
+  "candidateEmail": "alex.brown@example.com",
+  "candidateName": "Alex Brown",
+  "yearlyIncome": 65000,
+  "loanAmount": 280000,
+  "propertyId": 1,
+  "submittedDate": "2025-11-27T22:53:00Z",
+  "currentStatus": "AwaitingReview"
 }
 ```
 
 **Using curl:**
 ```bash
-curl -X POST https://localhost:5002/api/mortgageapplications \
+curl -k -X POST https://localhost:5002/api/mortgageapplications \
   -H "Content-Type: application/json" \
   -d '{
-    "applicantEmail": "emma.taylor@example.com",
-    "applicantName": "Emma Taylor",
-    "annualIncome": 58000,
-    "requestedAmount": 260000,
-    "houseId": 1
+    "candidateEmail": "emma.taylor@example.com",
+    "candidateName": "Emma Taylor",
+    "yearlyIncome": 58000,
+    "loanAmount": 260000,
+    "propertyId": 1
   }'
 ```
 
@@ -270,9 +270,9 @@ In Azure Storage Explorer:
 After completing the tests, you should observe:
 
 - [x] Listings API successfully returns 2 houses
-- [x] Mortgage API creates applications with **"Pending"** status
-- [x] Process Function updates applications to **"Approved"** or **"Rejected"** (visible in logs)
-- [x] Send Function logs email notifications for approved applications
+- [x] Mortgage API creates applications with **"AwaitingReview"** status
+- [x] Process Function updates applications to **"Accepted"** or **"Declined"** (visible in logs)
+- [x] Send Function logs email notifications for accepted applications
 - [x] Storage Explorer displays applications in Table Storage and generated documents in Blob Storage
 
 ### Test Scenarios
@@ -280,11 +280,11 @@ After completing the tests, you should observe:
 **Test Case 1 - Approved Application:**
 ```json
 {
-  "applicantEmail": "test.approved@example.com",
-  "applicantName": "Test User",
-  "annualIncome": 65000,
-  "requestedAmount": 250000,
-  "houseId": 1
+  "candidateEmail": "test.approved@example.com",
+  "candidateName": "Test User",
+  "yearlyIncome": 65000,
+  "loanAmount": 250000,
+  "propertyId": 1
 }
 ```
 Expected: Approved (income €25k+, loan within 4.5× income limit of €292,500)
@@ -292,11 +292,11 @@ Expected: Approved (income €25k+, loan within 4.5× income limit of €292,500
 **Test Case 2 - Rejected (Income Too Low):**
 ```json
 {
-  "applicantEmail": "test.rejected@example.com",
-  "applicantName": "Test User",
-  "annualIncome": 20000,
-  "requestedAmount": 80000,
-  "houseId": 1
+  "candidateEmail": "test.rejected@example.com",
+  "candidateName": "Test User",
+  "yearlyIncome": 20000,
+  "loanAmount": 80000,
+  "propertyId": 1
 }
 ```
 Expected: Rejected (income below minimum threshold of €25k)
@@ -304,18 +304,18 @@ Expected: Rejected (income below minimum threshold of €25k)
 **Test Case 3 - Rejected (Loan Too High):**
 ```json
 {
-  "applicantEmail": "test.rejected2@example.com",
-  "applicantName": "Test User",
-  "annualIncome": 50000,
-  "requestedAmount": 250000,
-  "houseId": 2
+  "candidateEmail": "test.rejected2@example.com",
+  "candidateName": "Test User",
+  "yearlyIncome": 50000,
+  "loanAmount": 250000,
+  "propertyId": 2
 }
 ```
 Expected: Rejected (loan €250k exceeds 4.5× income limit of €225k)
 
 ### Expected Mortgage Calculation Examples
 
-With annual income of €65,000:
+With yearly income of €65,000:
 - Maximum loan: €292,500 (4.5 × €65,000)
 - Interest rate tiers: 3.0% (low loan), up to 5.5% (high loan ratio)
 - Monthly payment for €250k at 4.0% over 25 years: ~€1,320

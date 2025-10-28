@@ -145,7 +145,11 @@ Navigate to `https://localhost:5001/swagger` in your browser
 
 **Option B - Command Line:**
 ```bash
-curl https://localhost:5001/api/houses
+# Note: Use -k flag to skip SSL certificate verification
+curl -k https://localhost:5001/api/houses
+
+# Or use HTTP endpoint
+curl http://localhost:5000/api/houses
 ```
 
 You should receive a JSON response containing **2 pre-seeded house listings**:
